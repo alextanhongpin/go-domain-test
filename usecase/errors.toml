@@ -1,5 +1,10 @@
 [not_found]
 "product.not_found" = "Product does not exist or may have been deleted."
 
+
+[bad_input]
+"product.name_bad_format" = "Product name can only contain alphanumeric characters and spaces."
+
+
 [unauthorized]
 "product.unauthorized" = "You do not have access to this product."

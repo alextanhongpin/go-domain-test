@@ -16,6 +16,43 @@ type ProductRepository struct {
 	mock.Mock
 }
 
+// Create provides a mock function with given fields: ctx, name, userID
+func (_m *ProductRepository) Create(ctx context.Context, name string, userID uuid.UUID) (*domain.Product, error) {
+	ret := _m.Called(ctx, name, userID)
+
+	var r0 *domain.Product
+	if rf, ok := ret.Get(0).(func(context.Context, string, uuid.UUID) *domain.Product); ok {
+		r0 = rf(ctx, name, userID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*domain.Product)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, uuid.UUID) error); ok {
+		r1 = rf(ctx, name, userID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// Delete provides a mock function with given fields: ctx, id
+func (_m *ProductRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	ret := _m.Called(ctx, id)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, uuid.UUID) error); ok {
+		r0 = rf(ctx, id)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // FindByID provides a mock function with given fields: ctx, id
 func (_m *ProductRepository) FindByID(ctx context.Context, id uuid.UUID) (*domain.Product, error) {
 	ret := _m.Called(ctx, id)

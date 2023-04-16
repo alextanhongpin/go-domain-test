@@ -5,37 +5,99 @@ import (
 	"time"
 
 	"github.com/alextanhongpin/go-domain-test/domain"
+	"github.com/alextanhongpin/go-domain-test/domain/factories"
 	"github.com/alextanhongpin/go-domain-test/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestProduct(t *testing.T) {
-	t.Run("no published at", func(t *testing.T) {
-		pdt := &domain.Product{}
-		assert.False(t, pdt.IsPublished())
-	})
+func TestProductIsPublished(t *testing.T) {
+	tests := []struct {
+		name string
+		args *domain.Product
+		want bool
+	}{
+		{
+			name: "no published at",
+			args: &domain.Product{},
+			want: false,
+		},
+		{
+			name: "published in the past",
+			args: func() *domain.Product {
+				pdt := &domain.Product{}
+				pdt.PublishedAt = types.Ptr(time.Now().Add(-1 * time.Second))
+				return pdt
+			}(),
+			want: true,
+		},
+		{
+			name: "published in the future",
+			args: func() *domain.Product {
+				pdt := &domain.Product{}
+				pdt.PublishedAt = types.Ptr(time.Now().Add(1 * time.Second))
+				return pdt
+			}(),
+			want: false,
+		},
+	}
 
-	t.Run("published in the past", func(t *testing.T) {
-		pdt := &domain.Product{}
-		pdt.PublishedAt = types.Ptr(time.Now().Add(-1 * time.Second))
-		assert.True(t, pdt.IsPublished())
-	})
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.args.IsPublished())
+		})
+	}
+}
 
-	t.Run("published in the future", func(t *testing.T) {
-		pdt := &domain.Product{}
-		pdt.PublishedAt = types.Ptr(time.Now().Add(1 * time.Second))
-		assert.False(t, pdt.IsPublished())
-	})
+func TestProductIsMine(t *testing.T) {
+	type args struct {
+		userID uuid.UUID
+	}
 
-	t.Run("is mine", func(t *testing.T) {
-		userID := uuid.New()
-		pdt := &domain.Product{UserID: userID}
-		assert.True(t, pdt.IsMine(userID))
-	})
+	p := factories.NewProduct()
+	tests := []struct {
+		name string
+		args args
+		want bool
+	}{
+		{
+			name: "is mine",
+			args: args{userID: p.UserID},
+			want: true,
+		},
+		{
+			name: "is not mine",
+			args: args{userID: uuid.New()},
+			want: false,
+		},
+	}
 
-	t.Run("is not mine", func(t *testing.T) {
-		pdt := &domain.Product{UserID: uuid.New()}
-		assert.False(t, pdt.IsMine(uuid.New()))
-	})
+	for _, tc := range tests {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, p.IsMine(tc.args.userID))
+		})
+	}
+}
+
+func TestProductName(t *testing.T) {
+	tests := []struct {
+		name string
+		args string
+		want bool
+	}{
+		{name: "valid", args: "colorful socks", want: true},
+		{name: "invalid", args: "%!@", want: false},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			name := domain.ProductName(tc.args)
+			assert.Equal(t, tc.want, name.Valid())
+		})
+	}
 }

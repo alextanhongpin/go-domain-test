@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/alextanhongpin/go-domain-test/domain"
 	"github.com/google/uuid"
@@ -9,6 +10,8 @@ import (
 
 type ProductRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.Product, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+	Create(ctx context.Context, name string, userID uuid.UUID) (*domain.Product, error)
 }
 
 type ProductUsecase struct {
@@ -21,10 +24,10 @@ func NewProduct(productRepo ProductRepository) *ProductUsecase {
 	}
 }
 
-func (p *ProductUsecase) View(ctx context.Context, id uuid.UUID) (*domain.Product, error) {
-	pdt, err := p.productRepo.FindByID(ctx, id)
+func (u *ProductUsecase) View(ctx context.Context, id uuid.UUID) (*domain.Product, error) {
+	pdt, err := u.productRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("productRepo.FindByID: %w", err)
 	}
 
 	if !pdt.IsPublished() {
@@ -34,14 +37,36 @@ func (p *ProductUsecase) View(ctx context.Context, id uuid.UUID) (*domain.Produc
 	return pdt, nil
 }
 
-func (p *ProductUsecase) Delete(ctx context.Context, id, userID uuid.UUID) error {
-	pdt, err := p.productRepo.FindByID(ctx, id)
+type CreateProductDto struct {
+	Name   string
+	UserID uuid.UUID
+}
+
+func (u *ProductUsecase) Create(ctx context.Context, dto CreateProductDto) (*domain.Product, error) {
+	if name := domain.ProductName(dto.Name); !name.Valid() {
+		return nil, ErrProductNameBadFormat
+	}
+
+	pdt, err := u.productRepo.Create(ctx, dto.Name, dto.UserID)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("productRepo.Create: %w", err)
+	}
+
+	return pdt, nil
+}
+
+func (u *ProductUsecase) Delete(ctx context.Context, id, userID uuid.UUID) error {
+	pdt, err := u.productRepo.FindByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("productRepo.FindByID: %w", err)
 	}
 
 	if !pdt.IsMine(userID) {
 		return ErrProductUnauthorized
+	}
+
+	if err := u.productRepo.Delete(ctx, id); err != nil {
+		return fmt.Errorf("productRepo.Delete: %w", err)
 	}
 
 	return nil

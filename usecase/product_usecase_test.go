@@ -21,6 +21,17 @@ var (
 	isContext = mock.MatchedBy(func(ctx context.Context) bool {
 		return true
 	})
+
+	// unwrapErr attempts to unwrap the wrapped error, otherwise it returns the
+	// original error if there unwrapped error is nil.
+	unwrapErr = func(err error) error {
+		e := errors.Unwrap(err)
+		if e != nil {
+			return e
+		}
+
+		return err
+	}
 )
 
 func TestProductUsecaseView(t *testing.T) {
@@ -90,7 +101,7 @@ func TestProductUsecaseView(t *testing.T) {
 
 			uc := usecase.NewProduct(productRepo)
 			ucPdt, err := uc.View(context.Background(), tc.args.id)
-			assert.Equal(tc.wantErr, err)
+			assert.Equal(tc.wantErr, unwrapErr(err))
 			if diff := cmp.Diff(tc.want, ucPdt); diff != "" {
 				t.Errorf("want (+), got (-): %v", diff)
 			}
@@ -102,6 +113,7 @@ func TestProductUsecaseDelete(t *testing.T) {
 	type stub struct {
 		findByID    *domain.Product
 		findByIDErr error
+		deleteErr   error
 	}
 
 	type args struct {
@@ -130,9 +142,15 @@ func TestProductUsecaseDelete(t *testing.T) {
 			wantErr: usecase.ErrProductUnauthorized,
 		},
 		{
-			name:    "failed",
+			name:    "productRepo.findByID failed",
 			args:    args{id: p.ID},
 			stub:    stub{findByIDErr: errors.New("db error")},
+			wantErr: errors.New("db error"),
+		},
+		{
+			name:    "productRepo.delete failed",
+			args:    args{id: p.ID, userID: p.UserID},
+			stub:    stub{findByID: p, deleteErr: errors.New("db error")},
 			wantErr: errors.New("db error"),
 		},
 	}
@@ -145,10 +163,64 @@ func TestProductUsecaseDelete(t *testing.T) {
 
 			productRepo := new(mocks.ProductRepository)
 			productRepo.On("FindByID", isContext, tc.args.id).Return(stub.findByID, stub.findByIDErr).Once()
+			productRepo.On("Delete", isContext, tc.args.id).Return(stub.deleteErr).Once()
 
 			uc := usecase.NewProduct(productRepo)
 			err := uc.Delete(context.Background(), args.id, args.userID)
-			assert.Equal(tc.wantErr, err)
+			assert.Equal(tc.wantErr, unwrapErr(err))
+		})
+	}
+}
+
+func TestProductUsecaseCreate(t *testing.T) {
+	type stub struct {
+		create    *domain.Product
+		createErr error
+	}
+
+	type args usecase.CreateProductDto
+	p := factories.NewProduct()
+
+	tests := []struct {
+		name    string
+		args    args
+		stub    stub
+		want    *domain.Product
+		wantErr error
+	}{
+		{
+			name:    "success",
+			args:    args{Name: "colorful socks", UserID: p.UserID},
+			stub:    stub{create: p},
+			want:    p,
+			wantErr: nil,
+		},
+		{
+			name:    "name bad input",
+			args:    args{Name: "!@#$!@#", UserID: p.UserID},
+			wantErr: usecase.ErrProductNameBadFormat,
+		},
+		{
+			name:    "productRepo.create failed",
+			args:    args{Name: "colorful socks", UserID: p.UserID},
+			stub:    stub{createErr: errors.New("db error")},
+			wantErr: errors.New("db error"),
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+			args, stub := tc.args, tc.stub
+
+			productRepo := new(mocks.ProductRepository)
+			productRepo.On("Create", isContext, args.Name, args.UserID).Return(stub.create, stub.createErr).Once()
+
+			uc := usecase.NewProduct(productRepo)
+			pdt, err := uc.Create(context.Background(), usecase.CreateProductDto(args))
+			assert.Equal(tc.wantErr, unwrapErr(err))
+			assert.Equal(tc.want, pdt)
 		})
 	}
 }
