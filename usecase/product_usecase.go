@@ -33,3 +33,16 @@ func (p *ProductUsecase) View(ctx context.Context, id uuid.UUID) (*domain.Produc
 
 	return pdt, nil
 }
+
+func (p *ProductUsecase) Delete(ctx context.Context, id, userID uuid.UUID) error {
+	pdt, err := p.productRepo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if !pdt.IsMine(userID) {
+		return ErrProductUnauthorized
+	}
+
+	return nil
+}

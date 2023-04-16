@@ -13,5 +13,6 @@ var (
 	_          = errors.MustLoad(errorBytes, toml.Unmarshal)
 
 	// Product errors.
-	ErrProductNotFound = errors.Get("product.not_found")
+	ErrProductNotFound     = errors.Get("product.not_found")
+	ErrProductUnauthorized = errors.Get("product.unauthorized")
 )

@@ -23,7 +23,7 @@ var (
 	})
 )
 
-func TestProductUsecase(t *testing.T) {
+func TestProductUsecaseView(t *testing.T) {
 	type stub struct {
 		findByID    *domain.Product
 		findByIDErr error
@@ -94,6 +94,61 @@ func TestProductUsecase(t *testing.T) {
 			if diff := cmp.Diff(tc.want, ucPdt); diff != "" {
 				t.Errorf("want (+), got (-): %v", diff)
 			}
+		})
+	}
+}
+
+func TestProductUsecaseDelete(t *testing.T) {
+	type stub struct {
+		findByID    *domain.Product
+		findByIDErr error
+	}
+
+	type args struct {
+		id     uuid.UUID
+		userID uuid.UUID
+	}
+
+	p := factories.NewProduct()
+
+	tests := []struct {
+		name    string
+		args    args
+		stub    stub
+		wantErr error
+	}{
+		{
+			name:    "success",
+			args:    args{id: p.ID, userID: p.UserID},
+			stub:    stub{findByID: p},
+			wantErr: nil,
+		},
+		{
+			name:    "unauthorized",
+			args:    args{id: p.ID, userID: uuid.New()},
+			stub:    stub{findByID: p},
+			wantErr: usecase.ErrProductUnauthorized,
+		},
+		{
+			name:    "failed",
+			args:    args{id: p.ID},
+			stub:    stub{findByIDErr: errors.New("db error")},
+			wantErr: errors.New("db error"),
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+			args, stub := tc.args, tc.stub
+
+			productRepo := new(mocks.ProductRepository)
+			productRepo.On("FindByID", isContext, tc.args.id).Return(stub.findByID, stub.findByIDErr).Once()
+
+			uc := usecase.NewProduct(productRepo)
+			err := uc.Delete(context.Background(), args.id, args.userID)
+			assert.Equal(tc.wantErr, err)
 		})
 	}
 }

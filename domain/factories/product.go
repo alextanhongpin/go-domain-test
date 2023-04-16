@@ -13,5 +13,13 @@ func NewProduct() *domain.Product {
 		ID:          uuid.New(),
 		Name:        "colorful socks",
 		PublishedAt: types.Ptr(time.Now()),
+		UserID:      uuid.New(),
+	}
+}
+
+func NewUser() *domain.User {
+	return &domain.User{
+		ID:   uuid.New(),
+		Name: "John Appleseed",
 	}
 }

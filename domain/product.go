@@ -10,6 +10,7 @@ type Product struct {
 	ID          uuid.UUID
 	Name        string
 	PublishedAt *time.Time
+	UserID      uuid.UUID
 }
 
 func (p *Product) IsPublished() bool {
@@ -18,4 +19,8 @@ func (p *Product) IsPublished() bool {
 	}
 
 	return p.PublishedAt.Before(time.Now())
+}
+
+func (p *Product) IsMine(userID uuid.UUID) bool {
+	return p.UserID == userID
 }
