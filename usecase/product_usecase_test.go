@@ -11,7 +11,6 @@ import (
 	"github.com/alextanhongpin/go-domain-test/mocks"
 	"github.com/alextanhongpin/go-domain-test/types"
 	"github.com/alextanhongpin/go-domain-test/usecase"
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -95,16 +94,15 @@ func TestProductUsecaseView(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
+			args, stub := tc.args, tc.stub
 
 			productRepo := new(mocks.ProductRepository)
-			productRepo.On("FindByID", isContext, tc.args.id).Return(tc.stub.findByID, tc.stub.findByIDErr).Once()
+			productRepo.On("FindByID", isContext, args.id).Return(stub.findByID, stub.findByIDErr).Once()
 
 			uc := usecase.NewProduct(productRepo)
-			ucPdt, err := uc.View(context.Background(), tc.args.id)
+			ucPdt, err := uc.View(context.Background(), args.id)
 			assert.Equal(tc.wantErr, unwrapErr(err))
-			if diff := cmp.Diff(tc.want, ucPdt); diff != "" {
-				t.Errorf("want (+), got (-): %v", diff)
-			}
+			assert.Equal(tc.want, ucPdt)
 		})
 	}
 }
@@ -162,8 +160,8 @@ func TestProductUsecaseDelete(t *testing.T) {
 			args, stub := tc.args, tc.stub
 
 			productRepo := new(mocks.ProductRepository)
-			productRepo.On("FindByID", isContext, tc.args.id).Return(stub.findByID, stub.findByIDErr).Once()
-			productRepo.On("Delete", isContext, tc.args.id).Return(stub.deleteErr).Once()
+			productRepo.On("FindByID", isContext, args.id).Return(stub.findByID, stub.findByIDErr).Once()
+			productRepo.On("Delete", isContext, args.id).Return(stub.deleteErr).Once()
 
 			uc := usecase.NewProduct(productRepo)
 			err := uc.Delete(context.Background(), args.id, args.userID)
