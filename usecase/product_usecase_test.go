@@ -43,6 +43,18 @@ func TestProductUsecaseView(t *testing.T) {
 		id uuid.UUID
 	}
 
+	productWithoutPublishedAt := func() *domain.Product {
+		p := factories.NewProduct()
+		p.PublishedAt = nil
+		return p
+	}
+
+	productPublishedInTheFuture := func() *domain.Product {
+		p := factories.NewProduct()
+		p.PublishedAt = types.Ptr(time.Now().Add(1 * time.Second))
+		return p
+	}
+
 	p := factories.NewProduct()
 
 	tests := []struct {
@@ -59,27 +71,15 @@ func TestProductUsecaseView(t *testing.T) {
 			want: p,
 		},
 		{
-			name: "not yet published",
-			args: args{id: p.ID},
-			stub: stub{
-				findByID: func() *domain.Product {
-					cp := *p
-					cp.PublishedAt = nil
-					return &cp
-				}(),
-			},
+			name:    "not yet published",
+			args:    args{id: p.ID},
+			stub:    stub{findByID: productWithoutPublishedAt()},
 			wantErr: usecase.ErrProductNotFound,
 		},
 		{
-			name: "published in the future",
-			args: args{id: p.ID},
-			stub: stub{
-				findByID: func() *domain.Product {
-					cp := *p
-					cp.PublishedAt = types.Ptr(time.Now().Add(1 * time.Second))
-					return &cp
-				}(),
-			},
+			name:    "published in the future",
+			args:    args{id: p.ID},
+			stub:    stub{findByID: productPublishedInTheFuture()},
 			wantErr: usecase.ErrProductNotFound,
 		},
 		{
