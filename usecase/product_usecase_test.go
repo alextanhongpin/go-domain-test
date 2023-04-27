@@ -20,27 +20,12 @@ var (
 	isContext = mock.MatchedBy(func(ctx context.Context) bool {
 		return true
 	})
-
-	// unwrapErr attempts to unwrap the wrapped error, otherwise it returns the
-	// original error if there unwrapped error is nil.
-	unwrapErr = func(err error) error {
-		e := errors.Unwrap(err)
-		if e != nil {
-			return e
-		}
-
-		return err
-	}
 )
 
 func TestProductUsecaseView(t *testing.T) {
 	type stub struct {
 		findByID    *domain.Product
 		findByIDErr error
-	}
-
-	type args struct {
-		id uuid.UUID
 	}
 
 	productWithoutPublishedAt := func() *domain.Product {
@@ -55,38 +40,37 @@ func TestProductUsecaseView(t *testing.T) {
 		return p
 	}
 
-	p := factories.NewProduct()
+	// This acts as sentinel error.
+	wantErr := errors.New("want error")
 
 	tests := []struct {
 		name    string
-		args    args
-		stub    stub
-		want    *domain.Product
+		stubFn  func(*stub)
 		wantErr error
 	}{
 		{
 			name: "success",
-			args: args{id: p.ID},
-			stub: stub{findByID: p},
-			want: p,
 		},
 		{
-			name:    "not yet published",
-			args:    args{id: p.ID},
-			stub:    stub{findByID: productWithoutPublishedAt()},
+			name: "not yet published",
+			stubFn: func(s *stub) {
+				s.findByID = productWithoutPublishedAt()
+			},
 			wantErr: usecase.ErrProductNotFound,
 		},
 		{
-			name:    "published in the future",
-			args:    args{id: p.ID},
-			stub:    stub{findByID: productPublishedInTheFuture()},
+			name: "published in the future",
+			stubFn: func(s *stub) {
+				s.findByID = productPublishedInTheFuture()
+			},
 			wantErr: usecase.ErrProductNotFound,
 		},
 		{
-			name:    "failed",
-			args:    args{id: p.ID},
-			stub:    stub{findByIDErr: errors.New("db error")},
-			wantErr: errors.New("db error"),
+			name: "failed",
+			stubFn: func(s *stub) {
+				s.findByIDErr = wantErr
+			},
+			wantErr: wantErr,
 		},
 	}
 
@@ -94,15 +78,25 @@ func TestProductUsecaseView(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
-			args, stub := tc.args, tc.stub
+
+			p := factories.NewProduct()
+			stub := stub{findByID: p}
+			if tc.stubFn != nil {
+				tc.stubFn(&stub)
+			}
 
 			productRepo := new(mocks.ProductRepository)
-			productRepo.On("FindByID", isContext, args.id).Return(stub.findByID, stub.findByIDErr).Once()
+			productRepo.On("FindByID", isContext, p.ID).Return(stub.findByID, stub.findByIDErr).Once()
 
 			uc := usecase.NewProduct(productRepo)
-			ucPdt, err := uc.View(context.Background(), args.id)
-			assert.Equal(tc.wantErr, unwrapErr(err))
-			assert.Equal(tc.want, ucPdt)
+			ucPdt, err := uc.View(context.Background(), p.ID)
+			if err != nil {
+				assert.ErrorIs(err, tc.wantErr)
+				assert.Nil(ucPdt)
+				t.Logf("%s: %s\n", tc.name, err)
+			} else {
+				assert.Equal(p, ucPdt)
+			}
 		})
 	}
 }
@@ -119,37 +113,39 @@ func TestProductUsecaseDelete(t *testing.T) {
 		userID uuid.UUID
 	}
 
-	p := factories.NewProduct()
+	wantErr := errors.New("want error")
 
 	tests := []struct {
 		name    string
-		args    args
-		stub    stub
+		argsFn  func(args) args
+		stubFn  func(*stub)
 		wantErr error
 	}{
 		{
 			name:    "success",
-			args:    args{id: p.ID, userID: p.UserID},
-			stub:    stub{findByID: p},
 			wantErr: nil,
 		},
 		{
-			name:    "unauthorized",
-			args:    args{id: p.ID, userID: uuid.New()},
-			stub:    stub{findByID: p},
+			name: "unauthorized",
+			argsFn: func(a args) args {
+				a.userID = uuid.New()
+				return a
+			},
 			wantErr: usecase.ErrProductUnauthorized,
 		},
 		{
-			name:    "productRepo.findByID failed",
-			args:    args{id: p.ID},
-			stub:    stub{findByIDErr: errors.New("db error")},
-			wantErr: errors.New("db error"),
+			name: "productRepo.findByID failed",
+			stubFn: func(s *stub) {
+				s.findByIDErr = wantErr
+			},
+			wantErr: wantErr,
 		},
 		{
-			name:    "productRepo.delete failed",
-			args:    args{id: p.ID, userID: p.UserID},
-			stub:    stub{findByID: p, deleteErr: errors.New("db error")},
-			wantErr: errors.New("db error"),
+			name: "productRepo.delete failed",
+			stubFn: func(s *stub) {
+				s.deleteErr = wantErr
+			},
+			wantErr: wantErr,
 		},
 	}
 
@@ -157,7 +153,22 @@ func TestProductUsecaseDelete(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
-			args, stub := tc.args, tc.stub
+
+			p := factories.NewProduct()
+			args := args{
+				id:     p.ID,
+				userID: p.UserID,
+			}
+			if tc.argsFn != nil {
+				args = tc.argsFn(args)
+			}
+
+			stub := stub{
+				findByID: p,
+			}
+			if tc.stubFn != nil {
+				tc.stubFn(&stub)
+			}
 
 			productRepo := new(mocks.ProductRepository)
 			productRepo.On("FindByID", isContext, args.id).Return(stub.findByID, stub.findByIDErr).Once()
@@ -165,7 +176,8 @@ func TestProductUsecaseDelete(t *testing.T) {
 
 			uc := usecase.NewProduct(productRepo)
 			err := uc.Delete(context.Background(), args.id, args.userID)
-			assert.Equal(tc.wantErr, unwrapErr(err))
+			assert.ErrorIs(err, tc.wantErr)
+			t.Logf("%s: %s\n", tc.name, err)
 		})
 	}
 }
@@ -177,32 +189,33 @@ func TestProductUsecaseCreate(t *testing.T) {
 	}
 
 	type args usecase.CreateProductDto
-	p := factories.NewProduct()
+
+	wantErr := errors.New("want error")
 
 	tests := []struct {
 		name    string
-		args    args
-		stub    stub
-		want    *domain.Product
+		argsFn  func(args) args
+		stubFn  func(s *stub)
 		wantErr error
 	}{
 		{
 			name:    "success",
-			args:    args{Name: "colorful socks", UserID: p.UserID},
-			stub:    stub{create: p},
-			want:    p,
 			wantErr: nil,
 		},
 		{
-			name:    "name bad input",
-			args:    args{Name: "!@#$!@#", UserID: p.UserID},
+			name: "name bad input",
+			argsFn: func(a args) args {
+				a.Name = "!@#$!@#"
+				return a
+			},
 			wantErr: usecase.ErrProductNameBadFormat,
 		},
 		{
-			name:    "productRepo.create failed",
-			args:    args{Name: "colorful socks", UserID: p.UserID},
-			stub:    stub{createErr: errors.New("db error")},
-			wantErr: errors.New("db error"),
+			name: "productRepo.create failed",
+			stubFn: func(s *stub) {
+				s.createErr = wantErr
+			},
+			wantErr: wantErr,
 		},
 	}
 
@@ -210,15 +223,33 @@ func TestProductUsecaseCreate(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
-			args, stub := tc.args, tc.stub
+
+			p := factories.NewProduct()
+			args := args{
+				Name:   "colorful socks",
+				UserID: p.UserID,
+			}
+			if tc.argsFn != nil {
+				args = tc.argsFn(args)
+			}
+
+			stub := stub{create: p}
+			if tc.stubFn != nil {
+				tc.stubFn(&stub)
+			}
 
 			productRepo := new(mocks.ProductRepository)
 			productRepo.On("Create", isContext, args.Name, args.UserID).Return(stub.create, stub.createErr).Once()
 
 			uc := usecase.NewProduct(productRepo)
 			pdt, err := uc.Create(context.Background(), usecase.CreateProductDto(args))
-			assert.Equal(tc.wantErr, unwrapErr(err))
-			assert.Equal(tc.want, pdt)
+			if err != nil {
+				assert.ErrorIs(err, tc.wantErr)
+				assert.Nil(pdt)
+				t.Logf("%s: %s\n", tc.name, err)
+			} else {
+				assert.Equal(pdt, p)
+			}
 		})
 	}
 }
