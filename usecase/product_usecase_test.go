@@ -85,10 +85,10 @@ func TestProductUsecaseView(t *testing.T) {
 				tc.stubFn(&stub)
 			}
 
-			productRepo := new(mocks.ProductRepository)
-			productRepo.On("FindByID", isContext, p.ID).Return(stub.findByID, stub.findByIDErr).Once()
+			repo := new(mocks.ProductRepository)
+			repo.On("FindByID", isContext, p.ID).Return(stub.findByID, stub.findByIDErr).Once()
 
-			uc := usecase.NewProduct(productRepo)
+			uc := usecase.NewProduct(repo)
 			ucPdt, err := uc.View(context.Background(), p.ID)
 			if err != nil {
 				assert.ErrorIs(err, tc.wantErr)
@@ -97,6 +97,74 @@ func TestProductUsecaseView(t *testing.T) {
 			} else {
 				assert.Equal(p, ucPdt)
 			}
+		})
+	}
+}
+
+func TestProductUsecaseDeleteFlow(t *testing.T) {
+	wantErr := errors.New("want error")
+
+	tests := []struct {
+		name        string
+		description string
+		mockFn      func(*deleteProductFlow)
+		wantErr     error
+	}{
+		{
+			name:        "success",
+			description: `happy path`,
+			wantErr:     nil,
+		},
+		{
+			name: "unauthorized",
+			description: `
+				Given that John is unauthorized,
+				When John tries to delete the product,
+				Then John will be shown an error indicating the action is not authorized.
+			`,
+			mockFn: func(f *deleteProductFlow) {
+				f.args.userID = uuid.New()
+			},
+			wantErr: usecase.ErrProductUnauthorized,
+		},
+		{
+			name: "repo.findByID failed",
+			description: `
+				Given that the DB is down,
+				When finding a product by id,
+				Then an error will be returned.
+			`,
+			mockFn: func(f *deleteProductFlow) {
+				f.stub.findByIDErr = wantErr
+			},
+			wantErr: wantErr,
+		},
+		{
+			name: "repo.delete failed",
+			description: `
+				Given that the DB is down,
+				When deleting a product by id,
+				Then an error will be returned.
+			`,
+			mockFn: func(f *deleteProductFlow) {
+				f.stub.deleteErr = wantErr
+			},
+			wantErr: wantErr,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			f := newDeleteProductFlow()
+			if tc.mockFn != nil {
+				tc.mockFn(f)
+			}
+
+			err := f.Exec()
+			assert.ErrorIs(err, tc.wantErr, err)
 		})
 	}
 }
@@ -134,14 +202,14 @@ func TestProductUsecaseDelete(t *testing.T) {
 			wantErr: usecase.ErrProductUnauthorized,
 		},
 		{
-			name: "productRepo.findByID failed",
+			name: "repo.findByID failed",
 			stubFn: func(s *stub) {
 				s.findByIDErr = wantErr
 			},
 			wantErr: wantErr,
 		},
 		{
-			name: "productRepo.delete failed",
+			name: "repo.delete failed",
 			stubFn: func(s *stub) {
 				s.deleteErr = wantErr
 			},
@@ -170,11 +238,11 @@ func TestProductUsecaseDelete(t *testing.T) {
 				tc.stubFn(&stub)
 			}
 
-			productRepo := new(mocks.ProductRepository)
-			productRepo.On("FindByID", isContext, args.id).Return(stub.findByID, stub.findByIDErr).Once()
-			productRepo.On("Delete", isContext, args.id).Return(stub.deleteErr).Once()
+			repo := new(mocks.ProductRepository)
+			repo.On("FindByID", isContext, args.id).Return(stub.findByID, stub.findByIDErr).Once()
+			repo.On("Delete", isContext, args.id).Return(stub.deleteErr).Once()
 
-			uc := usecase.NewProduct(productRepo)
+			uc := usecase.NewProduct(repo)
 			err := uc.Delete(context.Background(), args.id, args.userID)
 			assert.ErrorIs(err, tc.wantErr)
 			t.Logf("%s: %s\n", tc.name, err)
@@ -211,7 +279,7 @@ func TestProductUsecaseCreate(t *testing.T) {
 			wantErr: usecase.ErrProductNameBadFormat,
 		},
 		{
-			name: "productRepo.create failed",
+			name: "repo.create failed",
 			stubFn: func(s *stub) {
 				s.createErr = wantErr
 			},
@@ -238,10 +306,10 @@ func TestProductUsecaseCreate(t *testing.T) {
 				tc.stubFn(&stub)
 			}
 
-			productRepo := new(mocks.ProductRepository)
-			productRepo.On("Create", isContext, args.Name, args.UserID).Return(stub.create, stub.createErr).Once()
+			repo := new(mocks.ProductRepository)
+			repo.On("Create", isContext, args.Name, args.UserID).Return(stub.create, stub.createErr).Once()
 
-			uc := usecase.NewProduct(productRepo)
+			uc := usecase.NewProduct(repo)
 			pdt, err := uc.Create(context.Background(), usecase.CreateProductDto(args))
 			if err != nil {
 				assert.ErrorIs(err, tc.wantErr)
@@ -252,4 +320,45 @@ func TestProductUsecaseCreate(t *testing.T) {
 			}
 		})
 	}
+}
+
+type deleteProductFlow struct {
+	args struct {
+		id     uuid.UUID
+		userID uuid.UUID
+	}
+	stub struct {
+		findByID    *domain.Product
+		findByIDErr error
+		deleteErr   error
+	}
+}
+
+func newDeleteProductFlow() *deleteProductFlow {
+	p := factories.NewProduct()
+
+	f := &deleteProductFlow{}
+
+	args := f.args
+	args.id = p.ID
+	args.userID = p.UserID
+
+	stub := f.stub
+	stub.findByID = p
+
+	return f
+}
+
+func (f *deleteProductFlow) Exec() error {
+	ctx := context.Background()
+
+	args := f.args
+	stub := f.stub
+
+	repo := new(mocks.ProductRepository)
+	repo.On("FindByID", isContext, args.id).Return(stub.findByID, stub.findByIDErr).Once()
+	repo.On("Delete", isContext, args.id).Return(stub.deleteErr).Once()
+
+	uc := usecase.NewProduct(repo)
+	return uc.Delete(ctx, args.id, args.userID)
 }
