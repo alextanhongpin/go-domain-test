@@ -5,7 +5,7 @@ all: test
 
 
 install:
-	@go get github.com/vektra/mockery/...
+	@go install github.com/vektra/mockery/v2@v2.32.0
 
 
 mock:

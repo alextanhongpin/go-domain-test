@@ -6,20 +6,14 @@ import (
 	"testing"
 	"time"
 
+	mocks "github.com/alextanhongpin/go-domain-test/mocks/github.com/alextanhongpin/go-domain-test/usecase"
+
 	"github.com/alextanhongpin/go-domain-test/domain"
 	"github.com/alextanhongpin/go-domain-test/domain/factories"
-	"github.com/alextanhongpin/go-domain-test/mocks"
 	"github.com/alextanhongpin/go-domain-test/types"
 	"github.com/alextanhongpin/go-domain-test/usecase"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-)
-
-var (
-	matchCtx = mock.MatchedBy(func(ctx context.Context) bool {
-		return true
-	})
 )
 
 func TestProductUsecaseView(t *testing.T) {
@@ -40,8 +34,7 @@ func TestProductUsecaseView(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		f := newViewProductFlow()
-		err := f.exec()
-		assert.Nil(t, err)
+		assert.Nil(t, f.exec())
 	})
 
 	t.Run("not yet published", func(t *testing.T) {
@@ -160,9 +153,9 @@ func TestProductUsecaseDelete(t *testing.T) {
 				tc.stubFn(&stub)
 			}
 
-			repo := new(mocks.ProductRepository)
-			repo.On("FindByID", matchCtx, args.id).Return(stub.findByID, stub.findByIDErr).Once()
-			repo.On("Delete", matchCtx, args.id).Return(stub.deleteErr).Once()
+			repo := new(mocks.MockProductRepository)
+			repo.EXPECT().FindByID(context.Background(), args.id).Return(stub.findByID, stub.findByIDErr)
+			repo.EXPECT().Delete(context.Background(), args.id).Return(stub.deleteErr)
 
 			uc := usecase.NewProduct(repo)
 			err := uc.Delete(context.Background(), args.id, args.userID)
@@ -199,6 +192,18 @@ type result[T any] struct {
 	err  error
 }
 
+func ok[T any](t T) result[T] {
+	return result[T]{
+		data: t,
+	}
+}
+
+func fail[T any](err error) result[T] {
+	return result[T]{
+		err: err,
+	}
+}
+
 type viewProductFlow struct {
 	args struct {
 		id uuid.UUID
@@ -220,8 +225,8 @@ func (f *viewProductFlow) exec() error {
 	args := f.args
 	stub := f.stub
 
-	repo := new(mocks.ProductRepository)
-	repo.On("FindByID", matchCtx, args.id).Return(stub.findByID.data, stub.findByID.err).Once()
+	repo := new(mocks.MockProductRepository)
+	repo.EXPECT().FindByID(context.Background(), args.id).Return(stub.findByID.data, stub.findByID.err)
 
 	uc := usecase.NewProduct(repo)
 	ctx := context.Background()
@@ -245,12 +250,10 @@ func newDeleteProductFlow() *deleteProductFlow {
 
 	f := new(deleteProductFlow)
 
-	args := f.args
-	args.id = p.ID
-	args.userID = p.UserID
+	f.args.id = p.ID
+	f.args.userID = p.UserID
 
-	stub := f.stub
-	stub.findByID.data = p
+	f.stub.findByID.data = p
 
 	return f
 }
@@ -261,9 +264,9 @@ func (f *deleteProductFlow) exec() error {
 	args := f.args
 	stub := f.stub
 
-	repo := new(mocks.ProductRepository)
-	repo.On("FindByID", matchCtx, args.id).Return(stub.findByID.data, stub.findByID.err).Once()
-	repo.On("Delete", matchCtx, args.id).Return(stub.deleteErr).Once()
+	repo := new(mocks.MockProductRepository)
+	repo.EXPECT().FindByID(context.Background(), args.id).Return(stub.findByID.data, stub.findByID.err)
+	repo.EXPECT().Delete(context.Background(), args.id).Return(stub.deleteErr)
 
 	uc := usecase.NewProduct(repo)
 	return uc.Delete(ctx, args.id, args.userID)
@@ -293,8 +296,8 @@ func (f *createProductFlow) exec() error {
 	args := f.args
 	stub := f.stub
 
-	repo := new(mocks.ProductRepository)
-	repo.On("Create", matchCtx, args.Name, args.UserID).Return(stub.create.data, stub.create.err)
+	repo := new(mocks.MockProductRepository)
+	repo.EXPECT().Create(context.Background(), args.Name, args.UserID).Return(stub.create.data, stub.create.err)
 
 	ctx := context.Background()
 	uc := usecase.NewProduct(repo)

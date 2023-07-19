@@ -1,0 +1,8 @@
+with-expecter: True
+packages:
+    github.com/alextanhongpin/go-domain-test/usecase:
+        interfaces:
+            productRepository:
+                config:
+                    # Change private lowercase interface to uppercase.
+                    mockname: "MockProductRepository"

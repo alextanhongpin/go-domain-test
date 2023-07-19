@@ -8,17 +8,17 @@ import (
 	"github.com/google/uuid"
 )
 
-type ProductRepository interface {
+type productRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*domain.Product, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	Create(ctx context.Context, name string, userID uuid.UUID) (*domain.Product, error)
 }
 
 type ProductUsecase struct {
-	productRepo ProductRepository
+	productRepo productRepository
 }
 
-func NewProduct(productRepo ProductRepository) *ProductUsecase {
+func NewProduct(productRepo productRepository) *ProductUsecase {
 	return &ProductUsecase{
 		productRepo: productRepo,
 	}
