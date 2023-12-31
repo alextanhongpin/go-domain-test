@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func NewDiscount(scenarios ...string) *domain.Discount {
+func NewDiscount(variants ...string) *domain.Discount {
 	// Valid discount by default.
 	dis := &domain.Discount{
 		ID:             1,
@@ -17,14 +17,14 @@ func NewDiscount(scenarios ...string) *domain.Discount {
 		MinPurchaseQty: 2,
 	}
 
-	for _, s := range scenarios {
-		switch s {
+	for _, v := range variants {
+		switch v {
 		case "positive_amount":
 			dis.Amount = 5
 		case "negative_purchase_qty":
 			dis.MinPurchaseQty = -1
 		default:
-			log.Fatalf("unknown discount scenario: %s", s)
+			log.Fatalf("unknown Discount variant: %s", v)
 		}
 	}
 

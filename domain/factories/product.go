@@ -1,3 +1,4 @@
+// prefer fixtures?
 package factories
 
 import (
@@ -9,35 +10,34 @@ import (
 	"github.com/google/uuid"
 )
 
-func NewProduct(scenarios ...string) *domain.Product {
+func NewProduct(variants ...string) *domain.Product {
 	// Valid product.
 	p := &domain.Product{
 		ID:          uuid.New(),
 		Name:        "colorful socks",
 		PublishedAt: types.Ptr(time.Now()),
-		UserID:      uuid.New(),
+		UserID:      NewUser("john").ID, // Belongs to John.
 		Price:       10,
 	}
 
-	for _, s := range scenarios {
-		switch s {
+	for _, v := range variants {
+		switch v {
 		case "published_in_the_future":
 			p.PublishedAt = types.Ptr(time.Now().Add(1 * time.Second))
 		case "published":
 			p.PublishedAt = types.Ptr(time.Now().Add(-1 * time.Second))
 		case "no_published_at":
 			p.PublishedAt = nil
+		// TODO:
+		case "chair":
+		// implement specific product.
+		// If there are nested entities, we can use the factory to create them, e.g. with_discount.
+		case "unknown_user":
+			p.UserID = uuid.New()
 		default:
-			log.Fatalf("unknown product scenario: %s", s)
+			log.Fatalf("unknown Product variant: %s", v)
 		}
 	}
 
 	return p
-}
-
-func NewUser() *domain.User {
-	return &domain.User{
-		ID:   uuid.New(),
-		Name: "John Appleseed",
-	}
 }
