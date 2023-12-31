@@ -6,3 +6,7 @@ packages:
                 config:
                     # Change private lowercase interface to uppercase.
                     mockname: "MockProductRepository"
+            purchaseRepository:
+                config:
+                    # Change private lowercase interface to uppercase.
+                    mockname: "MockPurchaseRepository"

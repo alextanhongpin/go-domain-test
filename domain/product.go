@@ -1,11 +1,14 @@
 package domain
 
 import (
+	"errors"
 	"regexp"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+var ErrNegativePrice = errors.New("-tive price")
 
 var regexpProductName = regexp.MustCompile(`^[a-zA-Z0-9 ]+$`)
 
@@ -22,6 +25,7 @@ type Product struct {
 	Name        ProductName
 	PublishedAt *time.Time
 	UserID      uuid.UUID
+	Price       int
 }
 
 func (p *Product) IsPublished() bool {
@@ -34,4 +38,18 @@ func (p *Product) IsPublished() bool {
 
 func (p *Product) IsMine(userID uuid.UUID) bool {
 	return p.UserID == userID
+}
+
+func (p *Product) WithDiscount(discounts ...Discount) (*Product, error) {
+	pc := *p
+
+	for _, d := range discounts {
+		pc.Price += d.Amount
+	}
+
+	if pc.Price < 0 {
+		return p, ErrNegativePrice
+	}
+
+	return &pc, nil
 }

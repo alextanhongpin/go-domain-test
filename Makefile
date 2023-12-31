@@ -8,11 +8,9 @@ install:
 	@go install github.com/vektra/mockery/v2@v2.32.0
 
 
+# usage: make mock name=purchaseRepository
 mock:
-ifndef name
-	$(error 'name is required, make mock name=InterfaceToMock')
-endif
-	@$(mockery) -name $(name) -recursive -case underscore
+	mockery
 
 
 test:
