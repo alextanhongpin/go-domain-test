@@ -4,31 +4,17 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	mocks "github.com/alextanhongpin/go-domain-test/mocks/github.com/alextanhongpin/go-domain-test/usecase"
 
 	"github.com/alextanhongpin/go-domain-test/domain"
 	"github.com/alextanhongpin/go-domain-test/domain/factories"
-	"github.com/alextanhongpin/go-domain-test/types"
 	"github.com/alextanhongpin/go-domain-test/usecase"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestProductUsecaseView(t *testing.T) {
-	productWithoutPublishedAt := func() *domain.Product {
-		p := factories.NewProduct()
-		p.PublishedAt = nil
-		return p
-	}
-
-	productPublishedInTheFuture := func() *domain.Product {
-		p := factories.NewProduct()
-		p.PublishedAt = types.Ptr(time.Now().Add(1 * time.Second))
-		return p
-	}
-
 	// This acts as sentinel error.
 	wantErr := errors.New("want error")
 
@@ -39,13 +25,13 @@ func TestProductUsecaseView(t *testing.T) {
 
 	t.Run("not yet published", func(t *testing.T) {
 		f := newViewProductFlow()
-		f.stub.findByID.data = productWithoutPublishedAt()
+		f.stub.findByID.data = factories.NewProduct("no_published_at")
 		assert.ErrorIs(t, f.exec(), usecase.ErrProductNotFound)
 	})
 
 	t.Run("published in the future", func(t *testing.T) {
 		f := newViewProductFlow()
-		f.stub.findByID.data = productPublishedInTheFuture()
+		f.stub.findByID.data = factories.NewProduct("published_in_the_future")
 		assert.ErrorIs(t, f.exec(), usecase.ErrProductNotFound)
 	})
 
@@ -78,7 +64,7 @@ func TestProductUsecaseDeleteFlow(t *testing.T) {
 
 	t.Run("error when delete", func(t *testing.T) {
 		f := newDeleteProductFlow()
-		f.stub.deleteErr = wantErr
+		f.stub.delete.err = wantErr
 		assert.ErrorIs(t, f.exec(), wantErr)
 	})
 }
@@ -187,21 +173,15 @@ func TestProductUsecaseCreate(t *testing.T) {
 	})
 }
 
-type result[T any] struct {
-	data T
+type arg1[T1, T2 any] struct {
+	args T1
+	data T2
 	err  error
 }
 
-func ok[T any](t T) result[T] {
-	return result[T]{
-		data: t,
-	}
-}
-
-func fail[T any](err error) result[T] {
-	return result[T]{
-		err: err,
-	}
+type arg0[T any] struct {
+	args T
+	err  error
 }
 
 type viewProductFlow struct {
@@ -209,7 +189,7 @@ type viewProductFlow struct {
 		id uuid.UUID
 	}
 	stub struct {
-		findByID result[*domain.Product]
+		findByID arg1[uuid.UUID, *domain.Product]
 	}
 }
 
@@ -217,6 +197,7 @@ func newViewProductFlow() *viewProductFlow {
 	p := factories.NewProduct()
 	f := new(viewProductFlow)
 	f.args.id = p.ID
+	f.stub.findByID.args = p.ID
 	f.stub.findByID.data = p
 	return f
 }
@@ -226,7 +207,7 @@ func (f *viewProductFlow) exec() error {
 	stub := f.stub
 
 	repo := new(mocks.MockProductRepository)
-	repo.EXPECT().FindByID(context.Background(), args.id).Return(stub.findByID.data, stub.findByID.err)
+	repo.EXPECT().FindByID(context.Background(), stub.findByID.args).Return(stub.findByID.data, stub.findByID.err)
 
 	uc := usecase.NewProduct(repo)
 	ctx := context.Background()
@@ -240,8 +221,8 @@ type deleteProductFlow struct {
 		userID uuid.UUID
 	}
 	stub struct {
-		findByID  result[*domain.Product]
-		deleteErr error
+		findByID arg1[uuid.UUID, *domain.Product]
+		delete   arg0[uuid.UUID]
 	}
 }
 
@@ -253,7 +234,9 @@ func newDeleteProductFlow() *deleteProductFlow {
 	f.args.id = p.ID
 	f.args.userID = p.UserID
 
+	f.stub.findByID.args = p.ID
 	f.stub.findByID.data = p
+	f.stub.delete.args = p.ID
 
 	return f
 }
@@ -265,8 +248,8 @@ func (f *deleteProductFlow) exec() error {
 	stub := f.stub
 
 	repo := new(mocks.MockProductRepository)
-	repo.EXPECT().FindByID(context.Background(), args.id).Return(stub.findByID.data, stub.findByID.err)
-	repo.EXPECT().Delete(context.Background(), args.id).Return(stub.deleteErr)
+	repo.EXPECT().FindByID(context.Background(), stub.findByID.args).Return(stub.findByID.data, stub.findByID.err)
+	repo.EXPECT().Delete(context.Background(), stub.delete.args).Return(stub.delete.err)
 
 	uc := usecase.NewProduct(repo)
 	return uc.Delete(ctx, args.id, args.userID)
@@ -275,7 +258,7 @@ func (f *deleteProductFlow) exec() error {
 type createProductFlow struct {
 	args usecase.CreateProductDto
 	stub struct {
-		create result[*domain.Product]
+		create arg1[usecase.CreateProductDto, *domain.Product]
 	}
 }
 
@@ -287,6 +270,7 @@ func newCreateProductFlow() *createProductFlow {
 		UserID: uuid.New(),
 	}
 
+	f.stub.create.args = f.args
 	f.stub.create.data = factories.NewProduct()
 
 	return f
@@ -297,7 +281,7 @@ func (f *createProductFlow) exec() error {
 	stub := f.stub
 
 	repo := new(mocks.MockProductRepository)
-	repo.EXPECT().Create(context.Background(), args.Name, args.UserID).Return(stub.create.data, stub.create.err)
+	repo.EXPECT().Create(context.Background(), stub.create.args.Name, stub.create.args.UserID).Return(stub.create.data, stub.create.err)
 
 	ctx := context.Background()
 	uc := usecase.NewProduct(repo)

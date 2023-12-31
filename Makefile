@@ -16,5 +16,5 @@ endif
 
 
 test:
-	@go test -v -failfast -cover -coverprofile=cover.out ./...
+	@go test -v -failfast -cover -covermode=count -coverprofile=cover.out ./...
 	@go tool cover -html=cover.out
